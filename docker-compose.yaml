@@ -1,0 +1,68 @@
+version: "3"
+services:
+  auth:
+    hostname: auth
+    container_name: auth
+    image: < replace your docker image tag >
+    environment:
+      - DATABASE_CONNECT_STRING="mongodb://boss:boss@mongo1:27017,mongo2:27017,mongo3:27017/admin?replicaSet=rs0readPreference=secondaryPreferred"
+      - DATABASE_DRIVER="mongoDb"
+    expose:
+      - 8080
+    depends_on:
+      mongodb_setup:
+        condition: service_healthy
+  mongodb_setup:
+    container_name: rs_setup
+    image: mongo:4.0.26
+    environment:
+      - LOCAL_IP=${LOCAL_IP}
+    expose:
+      - 27017
+    volumes:
+      - ./scripts:/scripts
+    entrypoint: ["/scripts/setup.sh"] # Make sure this file exists (see below for the setup.sh)
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "test $$(echo 'rs.status().ok' | mongo --host mongo1:27017 --quiet) -eq 1",
+        ]
+      interval: 10s
+      start_period: 30s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      - mongo1
+      - mongo2
+      - mongo3
+  mongo1:
+    hostname: mongo1
+    container_name: localmongo1
+    image: mongo:4.0.26
+    expose:
+      - 27017
+    ports:
+      - 27011:27017
+    restart: always
+    entrypoint: ["/usr/bin/mongod", "--bind_ip_all", "--replSet", "rs0"]
+  mongo2:
+    hostname: mongo2
+    container_name: localmongo2
+    image: mongo:4.0.26
+    expose:
+      - 27017
+    ports:
+      - 27012:27017
+    restart: always
+    entrypoint: ["/usr/bin/mongod", "--bind_ip_all", "--replSet", "rs0"]
+  mongo3:
+    hostname: mongo3
+    container_name: localmongo3
+    image: mongo:4.0.26
+    expose:
+      - 27017
+    ports:
+      - 27013:27017
+    restart: always
+    entrypoint: ["/usr/bin/mongod", "--bind_ip_all", "--replSet", "rs0"]
